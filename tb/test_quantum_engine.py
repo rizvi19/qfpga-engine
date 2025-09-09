@@ -131,3 +131,29 @@ async def test_qml_kernel_placeholder(dut):
     re_fixed = (complex_val >> 16) & 0xFFFF
     re_val = fixed_to_float(re_fixed)
     assert abs(re_val - 1/np.sqrt(2)) < 0.1, "QML placeholder H gate not applied"
+
+# --- CNOT Gate Test ---
+@cocotb.test()
+async def test_cnot_gate(dut):
+    """Test CNOT(q0->q1) on 2-qubit system starting in |10> -> expect |11>."""
+    await common_reset(dut)
+    # 2-qubit system has 4 amplitudes: |00|01|10|11
+    initial_state = np.zeros(4, dtype=complex)
+    initial_state[2] = 1.0 + 0j  # |10>
+    expected_state = np.zeros(4, dtype=complex)
+    expected_state[3] = 1.0 + 0j  # |11>
+
+    await initialize_bram(dut, initial_state)
+    if hasattr(dut,'program_select'): dut.program_select.value = 3  # CNOT test program
+    dut.start.value = 1; await RisingEdge(dut.clk); dut.start.value = 0
+    await RisingEdge(dut.done); await ClockCycles(dut.clk,4)
+
+    hw_results = []
+    for i in range(4):
+        complex_val = dut.state_vector_bram.memory[i].value.integer
+        re_fixed = (complex_val >> 16) & 0xFFFF
+        im_fixed = complex_val & 0xFFFF
+        hw_results.append(fixed_to_float(re_fixed)+1j*fixed_to_float(im_fixed))
+    hw_results = np.array(hw_results)
+
+    assert np.allclose(hw_results, expected_state, atol=1e-3), f"CNOT failed. Got {hw_results}"
