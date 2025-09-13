@@ -5,18 +5,7 @@
 //
 // Description:
 // A 3-stage pipelined unit for multiplying two complex numbers.
-// Operation: result = operand_a * operand_b
-//
-//   Let operand_a = ar + j*ai
-//   Let operand_b = br + j*bi
-//
-//   result_re = ar*br - ai*bi
-//   result_im = ar*bi + ai*br
-//
-// Pipeline Stages:
-//   - Stage 1: Register inputs.
-//   - Stage 2: Perform the four multiplications in parallel.
-//   - Stage 3: Perform additions/subtractions and register the final output.
+// Updated for Q1.15 fixed-point (result shift by 15).
 // ---------------------------------------------------------------------------
 `timescale 1ns / 1ps
 
@@ -58,10 +47,7 @@ module complex_math_unit (
             // Reset logic
             s1_operand_a <= '0;
             s1_operand_b <= '0;
-            s2_ac <= '0;
-            s2_bd <= '0;
-            s2_ad <= '0;
-            s2_bc <= '0;
+            s2_ac <= '0; s2_bd <= '0; s2_ad <= '0; s2_bc <= '0;
             s3_result <= '0;
         end else begin
             // -- Stage 1: Register the inputs --
@@ -71,6 +57,7 @@ module complex_math_unit (
 
             // -- Stage 2: Perform the four multiplications in parallel --
             // This is the most computationally intensive stage.
+            // Q1.15 * Q1.15 => Q2.30
             s2_ac <= s1_operand_a.re * s1_operand_b.re;
             s2_bd <= s1_operand_a.im * s1_operand_b.im;
             s2_ad <= s1_operand_a.re * s1_operand_b.im;
@@ -78,12 +65,12 @@ module complex_math_unit (
 
             // -- Stage 3: Perform final add/sub and rescale --
             // The multiplication result is 32 bits. We need to scale it
-            // back down to our 16-bit fixed-point format (Q3.13).
-            // Since we multiplied two Q3.13 numbers, the result is a
-            // Q6.26 number. We need to select the correct 16 bits.
-            // This is equivalent to a right-shift by 13.
-            s3_result.re <= (s2_ac - s2_bd) >>> 13;
-            s3_result.im <= (s2_ad + s2_bc) >>> 13;
+            // back down to our 16-bit fixed-point format (Q1.15).
+            // Since we multiplied two Q1.15 numbers, the result is a
+            // Q2.30 number. We need to select the correct 16 bits.
+            // This is equivalent to a right-shift by 15.
+            s3_result.re <= (s2_ac - s2_bd) >>> 15;
+            s3_result.im <= (s2_ad + s2_bc) >>> 15;
         end
     end
 
